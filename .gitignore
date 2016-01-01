@@ -28,5 +28,7 @@
 *.x86_64
 *.hex
 
-# Debug files
-*.dSYM/
+#
+mon1750
+*.map
+ChangeLog
