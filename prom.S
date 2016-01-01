@@ -72,12 +72,6 @@ _ivec:
 
         /* 真正的入口  */
 __rst:	
-	lim  r0, 511
-	xio  r0, 0x0110         // page 1  on Model 5
-
-	lisp r0, 15
-	xio  r0, 0x007e         // page 15 on Model 7 
-	
 	/* For P1750 */
         /* set configure register of P1754 */
 	// Read the PIC status reg 
@@ -118,12 +112,13 @@ __no_p1754:
         lim   r0, 0xC3FF      /* C3FF is default value */
         xio   r0, 0x1f51
 
-        /* reset the ACE */	
-	lisp  r0, 1
-        xio   r0, 0x0083
-	
+	/* FIX ME */
+	/* Add init code for your devices */
+
+	/* ... */
 __move:
         /* 1st, copy 0@PROM to 0@SRAM , only prom.S */ 
+        /* In StartUp ROM mode, read from PROM, write to SRAM */
         xorr r2, r2
         xorr r0, r0
         lim  r1, 0x100          // length of PROM.o 
