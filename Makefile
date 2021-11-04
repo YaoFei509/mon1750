@@ -20,7 +20,9 @@
 VER   = -1.7.17b1
 XGC   = /opt/m1750-ada$(VER)/bin/m1750-coff-
 CC    = $(XGC)gcc
+RUN    = $(XGC)run
 LDFLAGS = -T mon1750.M -Wl,-Map=mon1750.map
+RUNFLAGS = -bcyprsES -a "-bt -nosof -cpu mas31750 -uart1 1750 -freq 16"
 
 # if use with MAS31750SBC, add -D __USE_MAS31750SBC=1 
 # if use 2 UARTs, add -D __TWO_UART=1
@@ -28,24 +30,29 @@ LDFLAGS = -T mon1750.M -Wl,-Map=mon1750.map
 # -D __USE_TIMEOUT
 CFLAGS = -g -Wall 
 
+TARGET = mon1750
+
 all: hex 
 
-hex:  prom mon1750
+hex:  $(TARGET) prom 
+# PROM->SRAM loader at head
 	cp prom.hex mon1750_prom.hex
+# Move mon1750 obj code to PROM space @0x200 
 	$(XGC)objcopy -O ihex --change-address=512 mon1750 mon1750_tmp.hex
+# Remove Start Address line
 	sed "/:040*30*200F7/d" mon1750_tmp.hex >> mon1750_prom.hex
 	-rm -f prom mon1750_tmp.hex   
+# Split to two 8bit PROM images, High and Low 
 	$(XGC)objcopy -O ihex -i2 -b0 --gap-fill 0x74 --pad-to 0x2000 mon1750_prom.hex  mon1750_h.hex
 	$(XGC)objcopy -O ihex -i2 -b1 --gap-fill 0x00 --pad-to 0x2000 mon1750_prom.hex  mon1750_l.hex
 
-
-ram: mon1750
-	$(XGC)objcopy -O ihex mon1750  mon1750_ram.hex
+ram: $(TARGET)
+	$(XGC)objcopy -O ihex $< $<_ram.hex
 
 downld: ram
-	cp mon1750_ram.hex /dev/ttyS0	
+	cp $(TAREGT)_ram.hex /dev/ttyS0	
 
-asm:    mon1750
+asm:    $(TARGET)
 	$(XGC)objdump -Sa $< > $<.asm
 
 mon1750: mon1750.o 
@@ -54,7 +61,10 @@ prom:	prom.o
 	$(CC) -o $@ -T prom.M $<
 	$(XGC)objcopy -O ihex prom prom_tmp.hex
 	sed "/^:0*1FF/d"  prom_tmp.hex > prom.hex         # remove the end flag	
-	-rm -f prom_tmp.hex
+	-rm -f prom prom_tmp.hex
+
+run:	$(TARGET)
+	$(RUN) $(RUNFLAG) $< 
 
 log:
 	git pull
