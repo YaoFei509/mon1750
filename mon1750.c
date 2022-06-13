@@ -33,10 +33,34 @@
 //  #define __USE_MAS31750SBC  1 
 
 /*  If use with dual UARTs , uncomment follow line */
-//  #define __TWO_UART 1 
+//  #define __DUAL_UART 1 
 
 //  If use very low speed CPU, as P1750A@10MHz, disable timeout check 
 #define __USE_TIMEOUT 1
+
+// UART1
+#define UART1_DATA 0x500
+#define UART1_CTL  0x501
+
+// UART2 
+#ifdef __USE_MAS31750SBC
+// for Dynex MAS31750 SBC 
+#define UART2_DATA 0x520
+#define UART2_CTL  0x521
+#else
+// for SISE/809 computer
+#define UART2_DATA 0x600
+#define UART2_CTL  0x601
+#endif
+
+#ifndef __DUAL_UART
+// Single UART
+#undef UART2_DATA
+#undef UART2_CTL
+#define UART2_DATA UART1_DATA
+#define UART2_CTL  UART1_CTL
+#endif
+
 
 /*--------------------------------------------------------------------*/
 
@@ -67,6 +91,9 @@ static MASS_CFG          MassMemory;
 static unsigned          MaxMemory     = EEPROM_PAGE_BASE - 8;  /* Maxium memory */
 static unsigned          page_size     = 4096;
 
+// 1750A XIO read 
+#define XIO_READ 0x8000
+
 /*
  * Convert a hex character, '0' to '9', 'a' to 'f', or 'A' to 'F' to an
  * integer in the range 0 .. 15.  Return -1 if the given character is
@@ -89,25 +116,21 @@ hex (unsigned char ch)
 }
 
 //  ---------  STDIO  ------------------
-#define STDIN  0
-#define STDOUT 1
-#define STDERR 2
-
 static inline void
-uart_putc (int fd, char c)
+uart_putc (char c)
 /*
- * Write one character to the console. We use the ERA UARTs.
+ * Write one character to the console @UART1. We use the 8251 USART.
  */
 {
 	int reg;
 	
 	/* Wait until transmit buffer empty */
 	do {
-		asm volatile ("xio    %0,0x8501,%1":"=r" (reg):"x" ((fd - 1) << 8));
+		asm volatile ("xio %0,%1" : "=r" (reg) : "i" (UART1_CTL));
 	} while (!(reg & 0x04));
 	
 	/* Transmit one character */
-	asm volatile ("xio    %0,0x0500,%1"::"r" (c), "x" ((fd - 1) << 8));
+	asm volatile ("xio %0,%1"::"r" (c), "i" (UART1_DATA));
 }
 
 #ifndef _STDIO_H_
@@ -116,9 +139,9 @@ int puts(char *buf)
 	int i;
 	
 	for (i = 0; buf[i]; i++) {
-		uart_putc (STDOUT, buf[i]);
+		uart_putc (buf[i]);
 		if (buf[i] == '\n')
-			uart_putc (STDOUT, '\r');
+			uart_putc ('\r');
 	}
 	return i;
 }
@@ -135,59 +158,24 @@ get_debug_char ()
 	unsigned timeout = 0;
 #endif
 
-
-#ifdef __TWO_UART
 	/* Wait until receive buffer not empty. Keep watchdog happy. */
 	do {
 		asm volatile ("xio  r0, go");
-#ifdef __USE_MAS31750SBC
-		asm volatile ("xio  %0, 0x8521":"=r" (reg));
-#else
-		asm volatile ("xio  %0, 0x8601":"=r" (reg));
-#endif
+		asm volatile ("xio  %0, %1":"=r" (reg):"i"(UART2_CTL + XIO_READ));
+#ifdef __USE_TIMEOUT
 		timeout++; 
 	} while ((!(reg & 0x02)) && (timeout > 0));   
-	
  
 	if (timeout == 0) {        
 		return -1;
 	}
-		 
-
-	/* Get one 8-bit character.  */
-#ifdef __USE_MAS31750SBC
-	asm volatile ("xio  %0, 0x8520":"=r" (c));
 #else
-	asm volatile ("xio  %0, 0x8600":"=r" (c));
+        } while (!(reg & 0x02));
 #endif
 
-#else   /* single UART */
 
-	/* Wait until receive buffer not empty. Keep watchdog happy. */
-	do {
-
-#ifdef __USE_TIMEOUT
-		timeout++;
-		asm volatile ("xio  r0, go");
-#endif  
-		asm volatile ("xio  %0, 0x8501":"=r" (reg));     //读串口状态，0X02代表串口非空
-#ifdef __USE_TIMEOUT
-	} while ((!(reg & 0x02)) && (timeout > 0));
-#else       
-        } while (!(reg & 0x02)); // && (timeout > 0));
-#endif
-
-	//超时
-#ifdef __USE_TIMEOUT
-	if (timeout == 0) {
-		return -1;
-	}
-#endif
-
-	//没超时
 	/* Get one 8-bit character.  */
-	asm volatile ("xio  %0, 0x8500":"=r" (c));   //读串口数据，16位的数据，只有低8位有效
-#endif
+	asm volatile ("xio  %0, %1":"=r" (c): "i"(UART2_DATA + XIO_READ));
 
         return (c & 0xff);
 }
@@ -440,7 +428,7 @@ void yfreset()
 	 //关中断
 	//在_sistack开始的地方执行 reset_stub代码
 
-	uart_putc(STDOUT, 'x');
+	uart_putc('x');
 	asm(" xio  R0, DSBL                  
               jc   uc, 0, %0"::"r"(p));   
 }
@@ -738,7 +726,7 @@ int main ()
 	}
 
 
-#if __TWO_UART
+#if __DUAL_UART
 	puts("Support download Intel HEX file on USART2.\n");
 #else
 	puts("Support download Intel HEX file on USART. \n");
