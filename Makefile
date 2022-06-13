@@ -17,16 +17,16 @@
 #   Yao Fei (feiyao@me.com)
 #
 ###########################################################################
-VER   = -1.7.17b1
+VER   = 
 XGC   = /opt/m1750-ada$(VER)/bin/m1750-coff-
 CC    = $(XGC)gcc
 RUN    = $(XGC)run
 LDFLAGS = -T mon1750.M -Wl,-Map=mon1750.map
-RUNFLAGS = -bcyprsES -a "-bt -nosof -cpu mas31750 -uart1 1750 -freq 16"
+RUNFLAGS = -bcyprsES -a "-bt -cpu mas31750 -uart1 1750 -freq 16"
 
 # if use with MAS31750SBC, add -D __USE_MAS31750SBC=1 
-# if use 2 UARTs, add -D __TWO_UART=1
-#CFLAGS = -O3 -g -D __TWO_UART=1 -D __USE_MAS31750SBC=1
+# if use 2 UARTs, add -D __DUAL_UART=1
+#CFLAGS = -O3 -g -D __DUAL_UART=1 -D __USE_MAS31750SBC=1
 # -D __USE_TIMEOUT
 CFLAGS = -g -Wall 
 
@@ -64,7 +64,7 @@ prom:	prom.o
 	-rm -f prom prom_tmp.hex
 
 run:	$(TARGET)
-	$(RUN) $(RUNFLAG) $< 
+	$(RUN) $(RUNFLAGS) $< 
 
 log:
 	git pull
