@@ -1,5 +1,5 @@
 # mon1750
-A generic ROM HEX loader for MIL-STD-1750A based computers
+A generic ROM HEX bootloader for MIL-STD-1750A based computers
 
 SISE Universal monitor for MIL-STD-1750A based computer.
 
